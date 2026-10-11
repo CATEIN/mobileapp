@@ -123,6 +123,8 @@ import coredevices.pebble.account.PebbleAccount
 import coredevices.pebble.health.HealthSyncTracker
 import coredevices.pebble.health.PlatformHealthSync
 import coredevices.pebble.rememberLibPebble
+import coredevices.pebble.ui.SettingsIds.Asr4allModel
+import coredevices.pebble.ui.SettingsIds.Asr4allWatchDictation
 import coredevices.pebble.ui.SettingsIds.EnableActivityInsights
 import coredevices.pebble.ui.SettingsIds.EnableHealthPlatformSync
 import coredevices.pebble.ui.SettingsIds.EnableHealthTracking
@@ -141,6 +143,9 @@ import coredevices.util.CoreConfigHolder
 import coredevices.util.Permission
 import coredevices.util.PermissionRequester
 import coredevices.util.STTConfig
+import coredevices.pebble.services.asr4all.Asr4allModelSpec
+import coredevices.pebble.services.asr4all.Asr4allModelState
+import coredevices.pebble.services.asr4all.Asr4allModelStore
 import coredevices.util.emailOrNull
 import coredevices.util.models.CactusSTTMode
 import coredevices.util.models.ModelDownloadStatus
@@ -240,6 +245,8 @@ fun Section.navigatesDirectlyTo(): NavBarRoute? = when (this) {
 
 object SettingsIds {
     const val OfflineSpeechRecognition = "OfflineSpeechRecognition"
+    const val Asr4allWatchDictation = "Asr4allWatchDictation"
+    const val Asr4allModel = "Asr4allModel"
     const val EnableHealthTracking = "EnableHealthTracking"
     const val EnableActivityInsights = "EnableActivityInsights"
     const val EnableSleepInsights = "EnableSleepInsights"
@@ -367,6 +374,11 @@ fun rememberSettingsItemsState(navBarNav: NavBarNav?, snackbarDisplay: SnackbarD
         value = withContext(Dispatchers.Default) { platformSpeechRecognizer.isAvailable() }
     }
     val platformDownloadStatus by platformSpeechRecognizer.downloadStatus.collectAsState()
+    val asr4allStore: Asr4allModelStore = koinInject()
+    val asr4allState by asr4allStore.state.collectAsState()
+    LaunchedEffect(asr4allStore) {
+        withContext(Dispatchers.Default) { asr4allStore.refresh() }
+    }
     val platformModelAvailability by produceState(
         SpeechModelAvailability.Unsupported,
         coreConfig.sttConfig.spokenLanguage,
@@ -432,7 +444,7 @@ fun rememberSettingsItemsState(navBarNav: NavBarNav?, snackbarDisplay: SnackbarD
                     } else {
                         coreConfigHolder.update(
                             coreConfig.copy(
-                                sttConfig = STTConfig(
+                                sttConfig = coreConfig.sttConfig.copy(
                                     mode = pendingSTTMode,
                                     modelName = recommendedModelFinal.slug
                                 )
@@ -534,6 +546,7 @@ fun rememberSettingsItemsState(navBarNav: NavBarNav?, snackbarDisplay: SnackbarD
             watchPrefs,
             rebbleVoiceAvailable,
             platformSttAvailable,
+            asr4allState,
         ) {
             listOfNotNull(
                 basicSettingsActionItem(
@@ -1552,6 +1565,66 @@ fun rememberSettingsItemsState(navBarNav: NavBarNav?, snackbarDisplay: SnackbarD
                                 )
                             }
                         }
+                    },
+                ),
+                basicSettingsToggleItem(
+                    id = Asr4allWatchDictation,
+                    title = "ASR4ALL Watch Dictation",
+                    description = "On-device streaming recognition by FUTO, shown live on the watch " +
+                        "with supporting firmware. English only. " +
+                        when (val state = asr4allState) {
+                            Asr4allModelState.Unsupported -> "Not supported on this device."
+                            Asr4allModelState.NotDownloaded -> "Model not downloaded."
+                            is Asr4allModelState.Downloading -> "Downloading… ${(state.progress * 100).toInt()}%"
+                            Asr4allModelState.Ready -> "Model ready."
+                            is Asr4allModelState.Failed -> "Download failed: ${state.message}"
+                        },
+                    keywords = "asr4all futo speech recognition offline dictation",
+                    topLevelType = TopLevelType.Phone,
+                    section = Section.Speech,
+                    checked = coreConfig.sttConfig.useAsr4allForWatch,
+                    onCheckChanged = { enabled ->
+                        coreConfigHolder.update(
+                            coreConfig.copy(
+                                sttConfig = coreConfig.sttConfig.copy(useAsr4allForWatch = enabled)
+                            )
+                        )
+                        if (enabled && asr4allState != Asr4allModelState.Ready) {
+                            asr4allStore.download()
+                        }
+                    },
+                    show = { asr4allState != Asr4allModelState.Unsupported },
+                ),
+                basicSettingsDropdownItem(
+                    id = Asr4allModel,
+                    title = "ASR4ALL Model",
+                    keywords = "asr4all futo speech recognition model",
+                    topLevelType = TopLevelType.Phone,
+                    section = Section.Speech,
+                    items = Asr4allModelSpec.all,
+                    selectedItem = Asr4allModelSpec.forId(coreConfig.sttConfig.asr4allModel),
+                    onItemSelected = { spec ->
+                        coreConfigHolder.update(
+                            coreConfig.copy(
+                                sttConfig = coreConfig.sttConfig.copy(asr4allModel = spec.id)
+                            )
+                        )
+                        if (asr4allStore.refresh() != Asr4allModelState.Ready &&
+                            coreConfig.sttConfig.useAsr4allForWatch
+                        ) {
+                            asr4allStore.download()
+                        }
+                    },
+                    itemText = { spec ->
+                        when (spec) {
+                            Asr4allModelSpec.Medium -> "Medium (72 MB, more accurate)"
+                            Asr4allModelSpec.Large -> "Large (123 MB, most accurate)"
+                            else -> "Small (39 MB, faster)"
+                        }
+                    },
+                    show = {
+                        asr4allState != Asr4allModelState.Unsupported &&
+                            coreConfig.sttConfig.useAsr4allForWatch
                     },
                 ),
                 navBarNav?.let { nav -> basicSettingsActionItem(

@@ -1,7 +1,5 @@
 package coredevices.pebble.services
 
-import coredevices.speex.SpeexCodec
-import coredevices.speex.SpeexDecodeResult
 import coredevices.util.CoreConfigFlow
 import coredevices.util.transcription.HybridTranscriptionService
 import coredevices.util.transcription.STTLanguage
@@ -48,27 +46,19 @@ class HybridTranscription(
     override suspend fun transcribe(
         encoderInfo: VoiceEncoderInfo,
         audioFrames: Flow<UByteArray>,
-        isNotificationReply: Boolean
+        isNotificationReply: Boolean,
+        onPartialResult: suspend (String) -> Unit,
     ): TranscriptionResult {
         require(encoderInfo is VoiceEncoderInfo.Speex) {
             "Cactus transcription only supports Speex encoding, got ${encoderInfo::class.simpleName}"
         }
 
-        val speex = SpeexCodec(
-            sampleRate = encoderInfo.sampleRate,
-            bitRate = encoderInfo.bitRate,
-            frameSize = encoderInfo.frameSize
-        )
         val decodedBuffer = Buffer()
-        val pcm = ByteArray(encoderInfo.frameSize * Short.SIZE_BYTES)
         withContext(Dispatchers.IO) {
-            audioFrames.collect { frame ->
-                val result =
-                    speex.decodeFrame(frame.asByteArray(), pcm, hasHeaderByte = true)
-                if (result != SpeexDecodeResult.Success) {
-                    error("Failed to decode Speex frame: $result")
+            WatchSpeexDecoder.create(encoderInfo).use { speex ->
+                audioFrames.collect { frame ->
+                    decodedBuffer.write(speex.decode(frame.asByteArray()))
                 }
-                decodedBuffer.write(pcm)
             }
         }
         return try {

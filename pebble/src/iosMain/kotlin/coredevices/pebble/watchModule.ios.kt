@@ -12,6 +12,8 @@ import coredevices.pebble.actions.PebbleQuietTimeActions
 import coredevices.pebble.actions.PebbleTimelineActions
 import coredevices.pebble.actions.PebbleHealthActions
 import coredevices.pebble.actions.PebbleWatchInfoActions
+import coredevices.pebble.services.asr4all.Asr4allPlatform
+import coredevices.pebble.services.asr4all.UnsupportedAsr4allPlatform
 import org.koin.dsl.bind
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.singleOf
@@ -26,4 +28,5 @@ actual val platformWatchModule: Module = module {
     singleOf(::IosPebbleTimelineActions) bind PebbleTimelineActions::class
     singleOf(::IosPebbleWatchInfoActions) bind PebbleWatchInfoActions::class
     singleOf(::IosPebbleHealthActions) bind PebbleHealthActions::class
+    single<Asr4allPlatform> { UnsupportedAsr4allPlatform }
 }

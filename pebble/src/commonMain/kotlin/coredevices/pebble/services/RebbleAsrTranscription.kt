@@ -35,7 +35,8 @@ class RebbleAsrTranscription(
     override suspend fun transcribe(
         encoderInfo: VoiceEncoderInfo,
         audioFrames: Flow<UByteArray>,
-        isNotificationReply: Boolean
+        isNotificationReply: Boolean,
+        onPartialResult: suspend (String) -> Unit,
     ): TranscriptionResult {
         val result = transcribeInner(encoderInfo, audioFrames)
         if (result is TranscriptionResult.Success && result.words.isNotEmpty()) {

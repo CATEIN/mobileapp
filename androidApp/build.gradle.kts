@@ -114,6 +114,9 @@ dependencies {
     androidTestImplementation(project(":libindex"))
     androidTestImplementation(project(":index-ai"))
     androidTestImplementation(project(":mcp"))
+    androidTestImplementation(project(":pebble"))
+    androidTestImplementation(project(":libpebble3"))
+    androidTestImplementation(libs.serialization)
 }
 
 // Resolved at execution time — a configuration-time .get() makes every commit invalidate the

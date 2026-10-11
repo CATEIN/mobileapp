@@ -108,4 +108,8 @@ data class STTConfig(
     val modelName: String? = null,
     /** ISO 639-1 language code. Null means auto-detect. */
     val spokenLanguage: String? = null,
+    /** Watch dictation uses on-device ASR4ALL (English) when its model is downloaded. */
+    val useAsr4allForWatch: Boolean = false,
+    /** Which ASR4ALL model to use; see `Asr4allModelSpec.forId`. */
+    val asr4allModel: String? = null,
 )

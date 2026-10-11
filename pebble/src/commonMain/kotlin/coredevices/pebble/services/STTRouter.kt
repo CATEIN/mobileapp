@@ -1,8 +1,6 @@
 package coredevices.pebble.services
 
 import co.touchlab.kermit.Logger
-import coredevices.speex.SpeexCodec
-import coredevices.speex.SpeexDecodeResult
 import coredevices.util.CoreConfigFlow
 import coredevices.util.models.CactusSTTMode
 import coredevices.util.transcription.CactusTranscriptionService
@@ -25,13 +23,15 @@ import kotlin.time.TimeSource
 
 /**
  * Mode-aware [TranscriptionProvider] dispatching between [HybridTranscription] (cloud/local via
- * Cactus + WisprFlow) and [RebbleAsrTranscription] (Rebble's ASR). Owns fallback orchestration
+ * Cactus + WisprFlow), [RebbleAsrTranscription] (Rebble's ASR) and, when enabled and downloaded,
+ * [Asr4allTranscription]. Owns fallback orchestration
  * for `RebbleFirst`/`RebbleFallback` modes (which buffer Speex frames so they can be replayed
  * across both backends).
  */
 class STTRouter(
     private val cactus: HybridTranscription,
     private val rebble: RebbleAsrTranscription,
+    private val asr4all: Asr4allTranscription,
     private val cactusService: CactusTranscriptionService,
     private val coreConfigFlow: CoreConfigFlow,
 ) : TranscriptionProvider {
@@ -45,7 +45,11 @@ class STTRouter(
         private val rebbleFallbackReserve = 7.seconds
     }
 
+    private suspend fun useAsr4all(): Boolean =
+        coreConfigFlow.value.sttConfig.useAsr4allForWatch && asr4all.canServeSession()
+
     override suspend fun canServeSession(): Boolean {
+        if (useAsr4all()) return true
         val mode = coreConfigFlow.value.sttConfig.mode
         return when (mode) {
             CactusSTTMode.RebbleOnly -> rebble.isAvailable()
@@ -59,8 +63,12 @@ class STTRouter(
     override suspend fun transcribe(
         encoderInfo: VoiceEncoderInfo,
         audioFrames: Flow<UByteArray>,
-        isNotificationReply: Boolean
+        isNotificationReply: Boolean,
+        onPartialResult: suspend (String) -> Unit,
     ): TranscriptionResult {
+        if (useAsr4all()) {
+            return asr4all.transcribe(encoderInfo, audioFrames, isNotificationReply, onPartialResult)
+        }
         val mode = coreConfigFlow.value.sttConfig.mode
         if (mode !in rebbleModes) {
             return cactus.transcribe(encoderInfo, audioFrames, isNotificationReply)
@@ -150,20 +158,12 @@ class STTRouter(
         encoderInfo: VoiceEncoderInfo.Speex,
         frames: List<UByteArray>,
     ): ByteArray {
-        val speex = SpeexCodec(
-            sampleRate = encoderInfo.sampleRate,
-            bitRate = encoderInfo.bitRate,
-            frameSize = encoderInfo.frameSize,
-        )
-        val pcm = ByteArray(encoderInfo.frameSize * Short.SIZE_BYTES)
-        val output = ArrayList<Byte>(frames.size * pcm.size)
+        val output = ArrayList<Byte>(frames.size * encoderInfo.frameSize * Short.SIZE_BYTES)
         withContext(Dispatchers.IO) {
-            for (frame in frames) {
-                val result = speex.decodeFrame(frame.asByteArray(), pcm, hasHeaderByte = true)
-                if (result != SpeexDecodeResult.Success) {
-                    error("Failed to decode Speex frame: $result")
+            WatchSpeexDecoder.create(encoderInfo).use { speex ->
+                for (frame in frames) {
+                    for (b in speex.decode(frame.asByteArray())) output.add(b)
                 }
-                for (b in pcm) output.add(b)
             }
         }
         return output.toByteArray()

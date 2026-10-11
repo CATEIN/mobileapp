@@ -27,6 +27,7 @@ sealed class OutgoingVoicePacket(command: VoiceCommand) :
 enum class VoiceCommand(val value: UByte) {
     SessionSetup(0x01u),
     DictationResult(0x02u),
+    PartialResult(0x04u),
 }
 
 class Word(confidence: UByte = 0u, data: String = "") : StructMappable() {
@@ -126,6 +127,15 @@ class DictationResult(sessionId: UShort, result: Result, attributes: List<Struct
     val result = SUByte(m, result.value)
     val attributeCount = SUByte(m, attributes.size.toUByte())
     val attributes = SFixedList(m, attributes.size, attributes) { VoiceAttribute() }
+}
+
+/**
+ * Text recognized so far in a session that is still recording, as UTF-8 filling the rest of the
+ * packet. Firmware without live dictation ignores it.
+ */
+class DictationPartialResult(sessionId: UShort, text: String) : OutgoingVoicePacket(VoiceCommand.PartialResult) {
+    val sessionId = SUShort(m, sessionId, endianness = Endian.Little)
+    val text = SFixedString(m, text.encodeToByteArray().size, text)
 }
 
 fun voicePacketsRegister() {

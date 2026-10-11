@@ -10,7 +10,8 @@ class NullTranscriptionProvider: TranscriptionProvider {
     override suspend fun transcribe(
         encoderInfo: VoiceEncoderInfo,
         audioFrames: Flow<UByteArray>,
-        isNotificationReply: Boolean
+        isNotificationReply: Boolean,
+        onPartialResult: suspend (String) -> Unit,
     ): TranscriptionResult {
         audioFrames.collect {  }
         return TranscriptionResult.Disabled

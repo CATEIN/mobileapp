@@ -60,6 +60,8 @@ import coredevices.pebble.ui.CommonAppType
 import coredevices.pebble.ui.LanguageDialog
 import coredevices.pebble.ui.NativeLockerAddUtil
 import coredevices.pebble.ui.NativeWatchfaceMainContent
+import coredevices.pebble.ui.SettingsIds.Asr4allModel
+import coredevices.pebble.ui.SettingsIds.Asr4allWatchDictation
 import coredevices.pebble.ui.SettingsIds.EnableActivityInsights
 import coredevices.pebble.ui.SettingsIds.EnableHealthPlatformSync
 import coredevices.pebble.ui.SettingsIds.EnableHealthTracking
@@ -312,6 +314,8 @@ fun WatchOnboardingScreen(
                         if (connectedWatch.capabilities.contains(ProtocolCapsFlag.SupportsAppDictation)) {
                             SectionText("Speech Recognition")
                             Spacer(modifier = Modifier.height(15.dp))
+                            settings.Show(Asr4allWatchDictation)
+                            settings.Show(Asr4allModel)
                             settings.Show(OfflineSpeechRecognition)
                             SectionDivider()
                         }

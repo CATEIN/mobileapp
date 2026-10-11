@@ -5,6 +5,7 @@ import io.rebble.libpebblecommon.SystemAppIDs
 import io.rebble.libpebblecommon.WatchConfigFlow
 import io.rebble.libpebblecommon.di.ConnectionCoroutineScope
 import io.rebble.libpebblecommon.packets.AudioStream
+import io.rebble.libpebblecommon.packets.DictationPartialResult
 import io.rebble.libpebblecommon.packets.DictationResult
 import io.rebble.libpebblecommon.packets.Result
 import io.rebble.libpebblecommon.packets.Sentence
@@ -39,6 +40,22 @@ class VoiceSessionManager(
 ) {
     companion object Companion {
         private val logger = Logger.withTag("VoiceSession")
+
+        /** The watch only shows the end of the live text, so long partials are cut to their tail. */
+        private const val PARTIAL_RESULT_MAX_BYTES = 200
+
+        internal fun partialResultTail(text: String, maxBytes: Int = PARTIAL_RESULT_MAX_BYTES): String {
+            val bytes = text.encodeToByteArray()
+            if (bytes.size <= maxBytes) return text
+            var start = bytes.size - maxBytes
+            val space = (start until bytes.size).firstOrNull { bytes[it] == ' '.code.toByte() }
+            if (space != null) {
+                start = space + 1
+            } else {
+                while (start < bytes.size && bytes[start].toInt() and 0xC0 == 0x80) start++
+            }
+            return bytes.decodeToString(start, bytes.size)
+        }
     }
     private val _currentSession = MutableStateFlow<CurrentSession?>(null)
     val currentSession = _currentSession.asStateFlow()
@@ -143,7 +160,15 @@ class VoiceSessionManager(
                     transcriptionProvider.transcribe(
                         setupRequest.encoderInfo,
                         audioFrameFlow,
-                        isNotificationReply = setupRequest.appUuid == Uuid.NIL || setupRequest.appUuid == SystemAppIDs.NOTIFICATIONS_APP_UUID
+                        isNotificationReply = setupRequest.appUuid == Uuid.NIL || setupRequest.appUuid == SystemAppIDs.NOTIFICATIONS_APP_UUID,
+                        onPartialResult = { text ->
+                            voiceService.send(
+                                DictationPartialResult(
+                                    setupRequest.sessionId.toUShort(),
+                                    partialResultTail(text),
+                                )
+                            )
+                        },
                     )
                 } catch (e: CancellationException) {
                     logger.d { "Voice session cancelled" }

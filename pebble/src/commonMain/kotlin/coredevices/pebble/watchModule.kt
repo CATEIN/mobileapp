@@ -43,6 +43,8 @@ import coredevices.pebble.services.RealPebbleWebServices
 import coredevices.pebble.services.RebbleAsrService
 import coredevices.pebble.services.RebbleAsrTranscription
 import coredevices.pebble.services.STTRouter
+import coredevices.pebble.services.Asr4allTranscription
+import coredevices.pebble.services.asr4all.Asr4allModelStore
 import coredevices.pebble.ui.AppStoreCollectionScreenViewModel
 import coredevices.pebble.ui.AppstoreSettingsScreenViewModel
 import coredevices.pebble.ui.ContactsViewModel
@@ -252,10 +254,13 @@ val watchModule = module {
         )
     }
     singleOf(::RebbleAsrTranscription)
+    singleOf(::Asr4allModelStore)
+    singleOf(::Asr4allTranscription)
     single {
         STTRouter(
             cactus = get(),
             rebble = get(),
+            asr4all = get(),
             cactusService = get(),
             coreConfigFlow = get(),
         )

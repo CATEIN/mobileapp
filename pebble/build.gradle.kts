@@ -132,6 +132,7 @@ kotlin {
                 implementation(libs.androidx.activity.compose)
                 // gitlive's compile variant declares com.google.firebase:* without versions.
                 implementation(project.dependencies.platform(libs.firebase.bom))
+                implementation(libs.executorch.android)
             }
         }
 
@@ -152,7 +153,8 @@ compose.resources {
     packageOfResClass = "coreapp.pebble.generated.resources"
 }
 
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+// Compose metrics files are named after the IR module, which isn't a valid Windows file name.
+if (!System.getProperty("os.name").startsWith("Windows")) tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     compilerOptions {
         freeCompilerArgs.addAll(listOf(
             "-P",
