@@ -4,6 +4,7 @@ import co.touchlab.kermit.Logger
 import coredevices.util.CoreConfigFlow
 import coredevices.util.models.CactusSTTMode
 import coredevices.util.transcription.CactusTranscriptionService
+import coredevices.util.transcription.InferenceBoost
 import coredevices.util.transcription.TranscriptionException
 import io.ktor.utils.io.CancellationException
 import io.rebble.libpebblecommon.voice.TranscriptionProvider
@@ -34,6 +35,7 @@ class STTRouter(
     private val asr4all: Asr4allTranscription,
     private val cactusService: CactusTranscriptionService,
     private val coreConfigFlow: CoreConfigFlow,
+    private val inferenceBoost: InferenceBoost,
 ) : TranscriptionProvider {
     companion object {
         private val logger = Logger.withTag("STTRouter")
@@ -61,6 +63,23 @@ class STTRouter(
 
     @OptIn(ExperimentalUnsignedTypes::class)
     override suspend fun transcribe(
+        encoderInfo: VoiceEncoderInfo,
+        audioFrames: Flow<UByteArray>,
+        isNotificationReply: Boolean,
+        onPartialResult: suspend (String) -> Unit,
+    ): TranscriptionResult {
+        // A locked phone otherwise suspends or throttles the CPU between Bluetooth packets,
+        // stalling transcription (and its timeouts) until the watch has given up.
+        inferenceBoost.acquire()
+        try {
+            return route(encoderInfo, audioFrames, isNotificationReply, onPartialResult)
+        } finally {
+            inferenceBoost.release()
+        }
+    }
+
+    @OptIn(ExperimentalUnsignedTypes::class)
+    private suspend fun route(
         encoderInfo: VoiceEncoderInfo,
         audioFrames: Flow<UByteArray>,
         isNotificationReply: Boolean,

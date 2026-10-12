@@ -45,6 +45,7 @@ import coredevices.pebble.services.RebbleAsrTranscription
 import coredevices.pebble.services.STTRouter
 import coredevices.pebble.services.Asr4allTranscription
 import coredevices.pebble.services.asr4all.Asr4allModelStore
+import coredevices.util.transcription.NoOpInferenceBoost
 import coredevices.pebble.ui.AppStoreCollectionScreenViewModel
 import coredevices.pebble.ui.AppstoreSettingsScreenViewModel
 import coredevices.pebble.ui.ContactsViewModel
@@ -263,6 +264,7 @@ val watchModule = module {
             asr4all = get(),
             cactusService = get(),
             coreConfigFlow = get(),
+            inferenceBoost = getOrNull() ?: NoOpInferenceBoost(),
         )
     } bind TranscriptionProvider::class
 
