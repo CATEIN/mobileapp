@@ -6,6 +6,7 @@ import coredevices.speex.SpeexDecodeResult
 import coredevices.util.CoreConfigFlow
 import coredevices.util.models.CactusSTTMode
 import coredevices.util.transcription.CactusTranscriptionService
+import coredevices.util.transcription.InferenceBoost
 import coredevices.util.transcription.TranscriptionException
 import io.ktor.utils.io.CancellationException
 import io.rebble.libpebblecommon.voice.TranscriptionProvider
@@ -34,6 +35,7 @@ class STTRouter(
     private val rebble: RebbleAsrTranscription,
     private val cactusService: CactusTranscriptionService,
     private val coreConfigFlow: CoreConfigFlow,
+    private val inferenceBoost: InferenceBoost,
 ) : TranscriptionProvider {
     companion object {
         private val logger = Logger.withTag("STTRouter")
@@ -57,6 +59,22 @@ class STTRouter(
 
     @OptIn(ExperimentalUnsignedTypes::class)
     override suspend fun transcribe(
+        encoderInfo: VoiceEncoderInfo,
+        audioFrames: Flow<UByteArray>,
+        isNotificationReply: Boolean
+    ): TranscriptionResult {
+        // Without this a locked phone suspends or throttles the CPU mid-session, stalling
+        // transcription and its timeouts until the watch gives up.
+        inferenceBoost.acquire()
+        try {
+            return route(encoderInfo, audioFrames, isNotificationReply)
+        } finally {
+            inferenceBoost.release()
+        }
+    }
+
+    @OptIn(ExperimentalUnsignedTypes::class)
+    private suspend fun route(
         encoderInfo: VoiceEncoderInfo,
         audioFrames: Flow<UByteArray>,
         isNotificationReply: Boolean

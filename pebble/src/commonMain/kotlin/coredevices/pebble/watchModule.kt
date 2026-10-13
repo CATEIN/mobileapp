@@ -65,6 +65,7 @@ import coredevices.pebble.plugin.HostedPluginOAuthApi
 import coredevices.pebble.weather.WeatherPlugin
 import coredevices.pebble.weather.YahooWeatherInterceptor
 import coredevices.pebble.permissions.PermissionRequestNotifier
+import coredevices.util.transcription.NoOpInferenceBoost
 import dev.gitlive.firebase.Firebase
 import dev.gitlive.firebase.auth.auth
 import dev.jordond.compass.geocoder.Geocoder
@@ -258,6 +259,7 @@ val watchModule = module {
             rebble = get(),
             cactusService = get(),
             coreConfigFlow = get(),
+            inferenceBoost = getOrNull() ?: NoOpInferenceBoost(),
         )
     } bind TranscriptionProvider::class
 
